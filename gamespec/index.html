@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GameSpec">
+<link rel="manifest" href="manifest.json">
+<title>GameSpec</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #0a0c0f;
+  --bg2:     #111318;
+  --bg3:     #181c23;
+  --bg4:     #1e2330;
+  --line:    rgba(255,255,255,0.06);
+  --line2:   rgba(255,255,255,0.12);
+  --text:    #dde2ec;
+  --text2:   #7a8299;
+  --text3:   #3d4459;
+  --acc:     #e8c547;   /* amber — 警戒色、サバイバル感 */
+  --acc2:    #f5d96a;
+  --red:     #e05555;
+  --green:   #4db888;
+  --blue:    #5b8dee;
+  --safe:    env(safe-area-inset-bottom,0px);
+  --mono:    'JetBrains Mono',monospace;
+  --sans:    'Noto Sans JP',sans-serif;
+  --display: 'Syne',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow:hidden}
+
+/* ── shell ── */
+.shell{display:flex;flex-direction:column;height:100dvh}
+
+/* ── topbar ── */
+.topbar{
+  height:50px;display:flex;align-items:center;padding:0 16px;gap:12px;
+  border-bottom:1px solid var(--line);background:var(--bg2);flex-shrink:0;
+  padding-top:env(safe-area-inset-top,0);
+}
+.logo{font-family:var(--display);font-size:17px;font-weight:800;color:var(--acc);letter-spacing:-.01em}
+.logo span{color:var(--text3);font-size:12px;font-weight:400;font-family:var(--mono);margin-left:6px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.sync-dot.ok{background:var(--green)}
+.sync-dot.busy{background:var(--acc);animation:pulse .8s ease-in-out infinite alternate}
+.sync-dot.err{background:var(--red)}
+@keyframes pulse{to{opacity:.3}}
+.sync-txt{font-size:11px;font-family:var(--mono);color:var(--text3)}
+.tb-btn{background:none;border:1px solid var(--line2);border-radius:6px;color:var(--text2);font-size:11px;font-family:var(--sans);padding:5px 10px;cursor:pointer;white-space:nowrap}
+.tb-btn:hover{background:var(--bg3);color:var(--text)}
+
+/* ── tabs ── */
+.tabs{display:flex;border-bottom:1px solid var(--line);background:var(--bg2);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  padding:10px 18px;font-size:12px;font-weight:500;cursor:pointer;
+  color:var(--text3);border-bottom:2px solid transparent;white-space:nowrap;
+  transition:color .15s,border-color .15s;flex-shrink:0;
+}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.tab-icon{margin-right:5px;font-size:13px}
+
+/* ── content area ── */
+.content{flex:1;overflow-y:auto;padding:16px;padding-bottom:calc(80px + var(--safe))}
+
+/* ── section header ── */
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sec-title{font-family:var(--display);font-size:15px;font-weight:700;color:var(--acc)}
+.sec-count{font-size:11px;font-family:var(--mono);color:var(--text3)}
+.add-btn-main{margin-left:auto;padding:6px 14px;background:var(--acc);border:none;border-radius:6px;color:#0a0c0f;font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;transition:background .15s}
+.add-btn-main:hover{background:var(--acc2)}
+
+/* ── card ── */
+.card{
+  background:var(--bg2);border:1px solid var(--line);border-radius:10px;
+  margin-bottom:10px;overflow:hidden;transition:border-color .15s;
+}
+.card:focus-within{border-color:var(--line2)}
+.card-head{
+  padding:9px 12px;background:var(--bg3);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;
+}
+.card-tag{font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:99px}
+.tag-chapter{background:rgba(232,197,71,.12);color:var(--acc)}
+.tag-route{background:rgba(91,141,238,.12);color:var(--blue)}
+.tag-ending{background:rgba(224,85,85,.12);color:var(--red)}
+.tag-pc{background:rgba(232,197,71,.15);color:var(--acc)}
+.tag-npc{background:rgba(77,184,136,.12);color:var(--green)}
+.tag-enemy{background:rgba(224,85,85,.12);color:var(--red)}
+.tag-common{background:rgba(91,141,238,.12);color:var(--blue)}
+.tag-rare{background:rgba(232,197,71,.12);color:var(--acc)}
+.tag-key{background:rgba(224,85,85,.12);color:var(--red)}
+.card-body{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.del-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 4px;border-radius:4px;margin-left:auto;transition:color .15s}
+.del-btn:hover{color:var(--red)}
+
+/* ── fields ── */
+.field{display:flex;flex-direction:column;gap:4px}
+.field-row{display:flex;gap:10px}
+.field-row .field{flex:1;min-width:0}
+label{font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:.04em}
+input[type=text],textarea,select{
+  width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:6px;
+  color:var(--text);font-family:var(--sans);font-size:13px;padding:7px 10px;
+  outline:none;transition:border-color .15s;
+}
+input[type=text]:focus,textarea:focus,select:focus{border-color:rgba(232,197,71,.4)}
+textarea{resize:vertical;min-height:64px;line-height:1.6}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a8299'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+input[type=number]{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:7px 10px;outline:none}
+input[type=number]:focus{border-color:rgba(232,197,71,.4)}
+input[type=range]{width:100%;accent-color:var(--acc)}
+
+/* ── story tree ── */
+.tree-wrap{position:relative}
+.chapter-block{margin-bottom:16px}
+.chapter-line{display:flex;align-items:stretch;gap:0}
+.chapter-indent{width:24px;flex-shrink:0;display:flex;flex-direction:column;align-items:center}
+.v-line{width:1px;background:var(--line2);flex:1;margin:4px 0}
+.h-branch{width:100%;height:1px;background:var(--line2);margin-top:20px}
+.routes-wrap{margin-left:24px;display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.route-row{display:flex;align-items:stretch;gap:0}
+.route-indent{width:20px;flex-shrink:0;display:flex;flex-direction:column;align-items:center}
+.route-card{flex:1}
+.endings-wrap{margin-left:20px;margin-top:6px;display:flex;flex-direction:column;gap:6px}
+
+/* ── stat bars (character) ── */
+.stat-row{display:flex;align-items:center;gap:8px}
+.stat-label{font-size:11px;font-family:var(--mono);color:var(--text3);min-width:60px}
+.stat-bar-bg{flex:1;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.stat-bar-fill{height:100%;background:var(--acc);border-radius:2px;transition:width .3s}
+.stat-val{font-size:11px;font-family:var(--mono);color:var(--text2);min-width:24px;text-align:right}
+
+/* ── item badge ── */
+.item-effect{font-size:11px;font-family:var(--mono);color:var(--green);background:rgba(77,184,136,.08);border:1px solid rgba(77,184,136,.2);border-radius:4px;padding:3px 8px;display:inline-block}
+
+/* ── empty state ── */
+.empty{text-align:center;padding:50px 20px;color:var(--text3);font-size:13px;line-height:2}
+.empty-icon{font-size:32px;margin-bottom:8px;opacity:.4}
+
+/* ── bottom fab ── */
+.fab-area{
+  position:fixed;bottom:0;left:0;right:0;
+  padding:10px 16px;padding-bottom:calc(10px + var(--safe));
+  background:linear-gradient(transparent,var(--bg) 45%);
+  display:flex;justify-content:center;gap:8px;pointer-events:none;
+}
+.fab-area button{pointer-events:all}
+.fab{
+  padding:9px 20px;border:none;border-radius:99px;font-size:13px;font-weight:700;
+  font-family:var(--sans);cursor:pointer;transition:all .15s;
+}
+.fab-primary{background:var(--acc);color:#0a0c0f}
+.fab-primary:hover{background:var(--acc2)}
+.fab-sec{background:var(--bg3);border:1px solid var(--line2);color:var(--text2)}
+.fab-sec:hover{background:var(--bg4);color:var(--text)}
+
+/* ── modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--line2);border-radius:14px;padding:22px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px}
+.modal h2{font-family:var(--display);font-size:15px;font-weight:700;color:var(--acc)}
+.modal p{font-size:13px;color:var(--text2);line-height:1.7}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.modal input[type=text],.modal input[type=password]{width:100%}
+.hint{font-size:11px;color:var(--text3);line-height:1.7}
+.hint a{color:var(--blue)}
+.modal-btn{padding:7px 16px;border-radius:6px;font-size:13px;font-family:var(--sans);cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--text2)}
+.modal-btn:hover{background:var(--bg3);color:var(--text)}
+.modal-btn.primary{background:var(--acc);border-color:var(--acc);color:#0a0c0f;font-weight:700}
+.modal-btn.primary:hover{background:var(--acc2)}
+
+/* ── toast ── */
+.toast{position:fixed;bottom:calc(70px + var(--safe));left:50%;transform:translateX(-50%) translateY(16px);background:var(--bg4);border:1px solid var(--line2);border-radius:8px;padding:8px 18px;font-size:13px;color:var(--text);opacity:0;transition:all .22s;pointer-events:none;white-space:nowrap;z-index:400}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── relations chip ── */
+.chip-list{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:99px;background:var(--bg4);border:1px solid var(--line2);color:var(--text2);display:flex;align-items:center;gap:5px}
+.chip-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0 2px}
+.chip-del:hover{color:var(--red)}
+.chip-add{background:none;border:1px dashed var(--line2);border-radius:99px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--mono)}
+.chip-add:hover{border-color:var(--acc);color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- topbar -->
+  <div class="topbar">
+    <div class="logo">GAMESPEC <span>// survival</span></div>
+    <div class="tb-right">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span class="sync-txt" id="sync-txt">未接続</span>
+      <button class="tb-btn" onclick="showFbModal()">Firebase</button>
+      <button class="tb-btn" id="login-btn" onclick="handleLogin()">ログイン</button>
+    </div>
+  </div>
+
+  <!-- tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('story',this)"><span class="tab-icon">🗺</span>ストーリー</div>
+    <div class="tab" onclick="switchTab('chara',this)"><span class="tab-icon">👤</span>キャラクター</div>
+    <div class="tab" onclick="switchTab('item',this)"><span class="tab-icon">🎒</span>アイテム</div>
+  </div>
+
+  <!-- content -->
+  <div class="content" id="content"></div>
+
+  <!-- fab -->
+  <div class="fab-area" id="fab-area"></div>
+</div>
+
+<!-- Firebase modal -->
+<div class="modal-overlay" id="fb-modal">
+  <div class="modal">
+    <h2>Firebase 設定</h2>
+    <p>セリフエディタと同じプロジェクトを使えます。</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="field"><label>API KEY</label><input type="text" id="fb-key" placeholder="AIzaSy..."></div>
+      <div class="field"><label>AUTH DOMAIN</label><input type="text" id="fb-domain" placeholder="xxx.firebaseapp.com"></div>
+      <div class="field"><label>PROJECT ID</label><input type="text" id="fb-pid" placeholder="your-project-id"></div>
+    </div>
+    <p class="hint">セリフエディタと同じ Firebase プロジェクトを使う場合、同じ値を入力してください。データは別コレクション（gamespec）に保存されます。</p>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="closeModal('fb-modal')">キャンセル</button>
+      <button class="modal-btn primary" onclick="saveFbSettings()">保存してログイン</button>
+    </div>
+  </div>
+</div>
+
+<!-- account modal -->
+<div class="modal-overlay" id="acc-modal">
+  <div class="modal">
+    <h2>アカウント</h2>
+    <div style="display:flex;align-items:center;gap:12px;padding:4px 0">
+      <img id="u-avatar" src="" style="width:40px;height:40px;border-radius:50%;display:none">
+      <div>
+        <div id="u-name" style="font-size:14px;font-weight:500"></div>
+        <div id="u-email" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="closeModal('acc-modal')">閉じる</button>
+      <button class="modal-btn" onclick="doSignOut()" style="color:var(--red);border-color:rgba(224,85,85,.3)">ログアウト</button>
+    </div>
+  </div>
+</div>
+
+<!-- confirm modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <h2 id="c-title"></h2>
+    <p id="c-msg"></p>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="closeModal('confirm-modal')">キャンセル</button>
+      <button class="modal-btn" id="c-ok" style="color:var(--red);border-color:rgba(224,85,85,.3)">削除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// State
+// ══════════════════════════════════════════════════════
+const SKEY = 'gamespec_v1';
+const FBKEY = 'gamespec_fb';
+
+let data = {
+  story: [],    // chapters[]
+  chara: [],    // characters[]
+  item:  []     // items[]
+};
+let currentTab = 'story';
+let fbApp=null, fbDb=null, fbAuth=null, currentUser=null, _unsub=null;
+let dirty=false, syncTimer=null;
+
+// ══════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════
+function init() {
+  const raw = localStorage.getItem(SKEY);
+  if (raw) { try { data = JSON.parse(raw); } catch(e){} }
+  if (!data.story) data.story=[];
+  if (!data.chara) data.chara=[];
+  if (!data.item)  data.item=[];
+  if (!data.story.length) seedStory();
+  if (!data.chara.length) seedChara();
+  if (!data.item.length)  seedItem();
+  const cfg = getFbCfg();
+  if (cfg) loadFirebase(cfg); else setSyncStatus('none','Firebase未設定');
+  render();
+}
+
+function getFbCfg(){ try{return JSON.parse(localStorage.getItem(FBKEY))}catch{return null} }
+
+// ══════════════════════════════════════════════════════
+// Seed data（現代日本サバイバル）
+// ══════════════════════════════════════════════════════
+function seedStory() {
+  data.story = [{
+    id:'ch1', type:'chapter', title:'第1章　灰色の地平', summary:'崩壊から7年。旧市街の廃墟に生きる主人公は、禁断区域から来たという謎の人物と出会う。管理政府が隠す「再生計画」の断片が、物語を動かし始める。',
+    routes:[
+      { id:'r1a', title:'抵抗組織合流ルート', summary:'廃墟に潜む反政府組織「VEIN」に接触し、内側から体制を崩そうとする。', condition:'序盤で「情報を渡す」を選択 かつ ライラ好感度≥20',
+        endings:[
+          {id:'e1',type:'ending',title:'革命エンド',condition:'VEIN好感度≥70かつ主人公生存',summary:'管理政府の中枢を暴露することに成功。しかし自由の代償は大きかった。'},
+          {id:'e2',type:'ending',title:'内部崩壊エンド',condition:'VEIN好感度30〜69',summary:'組織は瓦解し、主人公だけが廃墟に残される。それでも種は蒔かれた。'}
+        ]
+      },
+      { id:'r1b', title:'単独潜入ルート', summary:'誰も信じず、自分だけで「再生計画」の真相へ向かう。', condition:'序盤で「黙っている」を選択',
+        endings:[
+          {id:'e3',type:'ending',title:'真実エンド',condition:'調査アイテム3種所持かつ精神力≥60',summary:'計画の全容を知った主人公は、その情報を世界に向けて送信する。一人の静かな革命。'},
+        ]
+      }
+    ]
+  },{
+    id:'ch2', type:'chapter', title:'第2章　錆びた楽園', summary:'政府管理下の「安全区画」へ潜入。表向きは清潔で豊かな都市。しかし住民の記憶は定期的に改竄されていた。',
+    routes:[
+      { id:'r2a', title:'内部告発ルート', summary:'記憶改竄装置を破壊し、住民を覚醒させる。', condition:'カイ好感度≥50',
+        endings:[]
+      }
+    ]
+  }];
+}
+
+function seedChara() {
+  data.chara = [
+    { id:'c1', role:'pc', name:'主人公', age:'20', gender:'設定可能', appearance:'プレイヤーが決定。旧世界の遺物を改造した装備を身に着けている。',
+      personality:'感情を表に出さないが、理不尽に対して激しく反応する。仲間ができると急に不器用になる。',
+      background:'崩壊前の研究施設で生まれた「被験体」の一人。記憶の一部が欠落しており、それが物語の核心に繋がる。',
+      affinity_init:0, stats:{体力:75,精神力:65,ハッキング:45,戦闘:60}, relations:[] },
+    { id:'c2', role:'npc', name:'ライラ', age:'23', gender:'女', appearance:'白銀の義手。顔の左半分に旧戦争の火傷痕。目だけが生き生きとしている。',
+      personality:'皮肉屋で口が達者。しかし一度信じた相手には命を賭ける。嘘をつかれることを極端に嫌う。',
+      background:'反政府組織「VEIN」の情報収集員。元は政府の特殊部隊員だったが、ある任務をきっかけに離反した。',
+      affinity_init:-10, stats:{体力:85,精神力:70,ハッキング:60,戦闘:90}, relations:['主人公とは利害関係からスタート','カイとは組織内で対立している'] },
+    { id:'c3', role:'npc', name:'カイ', age:'17', gender:'中性的', appearance:'頭部に古いARデバイスを常時装着。ほとんど廃材で作られた服を着ている。',
+      personality:'天真爛漫に見えて、実は全てを計算している。「楽しい」が行動の唯一の基準。恐怖を感じないのか、感じないふりをしているのかが不明。',
+      background:'安全区画育ちの天才ハッカー。記憶改竄を受けた経験を持つが、自力でその事実を掘り起こした。政府にとって最も危険な存在。',
+      affinity_init:20, stats:{体力:40,精神力:95,ハッキング:100,戦闘:25}, relations:['ライラとは思想的に対立','主人公の欠落した記憶の鍵を握っている'] },
+    { id:'c4', role:'enemy', name:'コマンダー・セイジ', age:'45', gender:'男', appearance:'完璧に整えられた管理政府の軍服。義眼が一方の目を占める。表情がほとんど変わらない。',
+      personality:'合理的な悪。「最大多数の最大幸福」を本気で信じており、そのためなら何でも行う。主人公を危険視しつつも、どこか興味を持っている。',
+      background:'再生計画の実行責任者。崩壊前の世界を知る数少ない生き残り。計画の全容と、その「代償」を知っている。',
+      affinity_init:-50, stats:{体力:80,精神力:100,ハッキング:70,戦闘:85}, relations:['主人公の出生に深く関わっている（第3章で判明）'] }
+  ];
+}
+
+function seedItem() {
+  data.item = [
+    { id:'i1', rarity:'common', name:'精製錠剤', category:'食料', effect:'体力+15、毒素耐性1ターン', obtain:'廃墟の自動販売機・行商人', desc:'崩壊後に普及した栄養補給錠剤。まずいが腹は膨れる。政府の刻印があるものとないものがある。', notes:'' },
+    { id:'i2', rarity:'rare', name:'ナノ治癒パッチ', category:'医療', effect:'重傷→軽傷、3ターンで出血解除', obtain:'旧病院・ライラが所持', desc:'崩壊前の医療技術の遺産。貼るだけでナノマシンが傷口を塞ぐ。数が極端に少ない。', notes:'ライラの好感度イベントで入手可能' },
+    { id:'i3', rarity:'rare', name:'廃棄ARゴーグル', category:'道具', effect:'隠しオブジェクト検知、暗号解読補助', obtain:'旧研究区画の廃材', desc:'カイが改造したARデバイスの旧型。壊れかけだが、政府が消した情報の残滓を拾えることがある。', notes:'カイとの会話イベントで修理可能→性能向上' },
+    { id:'i4', rarity:'key', name:'記憶断片チップ', category:'情報', effect:'主人公の欠落記憶の一部を再生、隠しルート解放', obtain:'第1章クリア後・特定の廃墟を調査', desc:'主人公の脳内に元々あったチップの欠片。差し込むたびに失われた過去が戻ってくる。しかし同時に何かが消えていく。', notes:'KEY ITEM。全3個収集で真エンド解放。Godot側でフラグ管理必要' },
+    { id:'i5', rarity:'key', name:'VEINの暗号鍵', category:'情報', effect:'安全区画への潜入ルート解放、第2章開幕', obtain:'ライラ好感度≥30で入手', desc:'反政府組織が管理する区画への通行証となる暗号データ。これがないと第2章の抵抗組織ルートに進めない。', notes:'第2章ライラルートの必須アイテム' }
+  ];
+}
+
+// ══════════════════════════════════════════════════════
+// Persist & Sync
+// ══════════════════════════════════════════════════════
+function save() {
+  localStorage.setItem(SKEY, JSON.stringify(data));
+  dirty = true;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(()=>{ if(dirty&&currentUser) syncNow(); }, 5000);
+}
+
+function setSyncStatus(state, label) {
+  const dot=document.getElementById('sync-dot'), txt=document.getElementById('sync-txt');
+  dot.className='sync-dot '+({ok:'ok',busy:'busy',err:'err'}[state]||'');
+  txt.textContent=label||({ok:'同期済み',busy:'同期中...',err:'エラー',none:'未接続'}[state]||'未接続');
+}
+
+// ══════════════════════════════════════════════════════
+// Firebase
+// ══════════════════════════════════════════════════════
+async function loadFirebase(cfg) {
+  if(fbApp) return true;
+  try {
+    const {initializeApp} = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const {getFirestore,doc,setDoc,onSnapshot} = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const {getAuth,signInWithPopup,GoogleAuthProvider,onAuthStateChanged,signOut:fbSO} = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    fbApp=initializeApp(cfg); fbDb=getFirestore(fbApp); fbAuth=getAuth(fbApp);
+    window._fb={doc,setDoc,onSnapshot,signInWithPopup,GoogleAuthProvider,fbSO};
+    onAuthStateChanged(fbAuth, user=>{
+      currentUser=user;
+      const btn=document.getElementById('login-btn');
+      if(user){
+        btn.textContent=user.displayName||'アカウント';
+        btn.onclick=showAccModal;
+        setSyncStatus('ok','ログイン済み');
+        listenFs(user.uid);
+      } else {
+        btn.textContent='ログイン';
+        btn.onclick=handleLogin;
+        setSyncStatus('none','ログインしてください');
+      }
+    });
+    return true;
+  } catch(e){ console.error(e); return false; }
+}
+
+function listenFs(uid) {
+  if(_unsub) _unsub();
+  const {doc,onSnapshot}=window._fb;
+  const ref=doc(fbDb,'users',uid,'data','gamespec');
+  setSyncStatus('busy','接続中...');
+  _unsub=onSnapshot(ref, snap=>{
+    if(snap.exists()){
+      const remote=snap.data();
+      if((remote._ts||0)>(data._ts||0)){
+        data=remote; localStorage.setItem(SKEY,JSON.stringify(data));
+        render(); toast('クラウドから取得しました');
+      }
+    }
+    setSyncStatus('ok','同期済み'); dirty=false;
+  }, err=>{ setSyncStatus('err','Firestoreエラー'); console.error(err); });
+}
+
+async function syncNow() {
+  if(!currentUser||!fbDb){ toast(getFbCfg()?'ログインしてください':'Firebase未設定'); return; }
+  setSyncStatus('busy','同期中...');
+  try {
+    const {doc,setDoc}=window._fb;
+    data._ts=Date.now();
+    localStorage.setItem(SKEY,JSON.stringify(data));
+    await setDoc(doc(fbDb,'users',currentUser.uid,'data','gamespec'),data);
+    dirty=false;
+    setSyncStatus('ok','同期済み '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}));
+    toast('クラウドに保存しました');
+  } catch(e){ setSyncStatus('err','エラー'); toast('同期失敗: '+e.message); }
+}
+
+function showFbModal(){
+  const c=getFbCfg()||{};
+  document.getElementById('fb-key').value=c.apiKey||'';
+  document.getElementById('fb-domain').value=c.authDomain||'';
+  document.getElementById('fb-pid').value=c.projectId||'';
+  openModal('fb-modal');
+}
+function saveFbSettings(){
+  const cfg={apiKey:document.getElementById('fb-key').value.trim(),authDomain:document.getElementById('fb-domain').value.trim(),projectId:document.getElementById('fb-pid').value.trim()};
+  if(!cfg.apiKey||!cfg.projectId){toast('API KeyとProject IDは必須です');return;}
+  localStorage.setItem(FBKEY,JSON.stringify(cfg));
+  closeModal('fb-modal');
+  loadFirebase(cfg).then(ok=>{ if(ok) googleLogin(); });
+}
+async function googleLogin(){
+  try { setSyncStatus('busy','ログイン中...'); await window._fb.signInWithPopup(fbAuth,new window._fb.GoogleAuthProvider()); }
+  catch(e){ setSyncStatus('err','ログイン失敗'); toast('ログイン失敗: '+e.message); }
+}
+function handleLogin(){
+  const cfg=getFbCfg();
+  if(!cfg){showFbModal();return;}
+  loadFirebase(cfg).then(ok=>{ if(ok) googleLogin(); });
+}
+function showAccModal(){
+  if(!currentUser) return;
+  document.getElementById('u-name').textContent=currentUser.displayName||'';
+  document.getElementById('u-email').textContent=currentUser.email||'';
+  const av=document.getElementById('u-avatar');
+  if(currentUser.photoURL){av.src=currentUser.photoURL;av.style.display='';}
+  openModal('acc-modal');
+}
+async function doSignOut(){ await window._fb.fbSO(fbAuth); closeModal('acc-modal'); toast('ログアウトしました'); }
+
+// ══════════════════════════════════════════════════════
+// Tabs
+// ══════════════════════════════════════════════════════
+function switchTab(tab, el) {
+  currentTab=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function render() {
+  const c=document.getElementById('content');
+  const f=document.getElementById('fab-area');
+  if(currentTab==='story') { c.innerHTML=renderStory(); f.innerHTML=storyFab(); }
+  else if(currentTab==='chara') { c.innerHTML=renderChara(); f.innerHTML=charaFab(); }
+  else { c.innerHTML=renderItem(); f.innerHTML=itemFab(); }
+}
+
+// ══════════════════════════════════════════════════════
+// STORY TAB
+// ══════════════════════════════════════════════════════
+function renderStory() {
+  if(!data.story.length) return `<div class="empty"><div class="empty-icon">🗺</div>章がありません<br>下のボタンから追加してください</div>`;
+  return data.story.map((ch,ci)=>`
+    <div class="chapter-block">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-tag tag-chapter">CHAPTER ${ci+1}</span>
+          <button class="del-btn" onclick="delChapter('${ch.id}')">✕</button>
+        </div>
+        <div class="card-body">
+          <div class="field"><label>タイトル</label>
+            <input type="text" value="${esc(ch.title)}" oninput="updChapter('${ch.id}','title',this.value)" placeholder="章のタイトル"></div>
+          <div class="field"><label>あらすじ</label>
+            <textarea oninput="updChapter('${ch.id}','summary',this.value)" placeholder="この章で何が起きるか...">${esc(ch.summary)}</textarea></div>
+        </div>
+      </div>
+      <div class="routes-wrap">
+        ${(ch.routes||[]).map((r,ri)=>`
+          <div class="route-row">
+            <div class="route-indent"><div class="v-line"></div></div>
+            <div class="route-card">
+              <div class="card">
+                <div class="card-head">
+                  <span class="card-tag tag-route">ROUTE ${ri+1}</span>
+                  <button class="del-btn" onclick="delRoute('${ch.id}','${r.id}')">✕</button>
+                </div>
+                <div class="card-body">
+                  <div class="field"><label>ルート名</label>
+                    <input type="text" value="${esc(r.title)}" oninput="updRoute('${ch.id}','${r.id}','title',this.value)" placeholder="ルート名"></div>
+                  <div class="field"><label>概要</label>
+                    <textarea oninput="updRoute('${ch.id}','${r.id}','summary',this.value)" placeholder="このルートの流れ...">${esc(r.summary)}</textarea></div>
+                  <div class="field"><label>分岐条件</label>
+                    <input type="text" value="${esc(r.condition)}" oninput="updRoute('${ch.id}','${r.id}','condition',this.value)" placeholder="例: 好感度≥50かつアイテム所持"></div>
+                </div>
+              </div>
+              <div class="endings-wrap">
+                ${(r.endings||[]).map((e,ei)=>`
+                  <div class="card">
+                    <div class="card-head">
+                      <span class="card-tag tag-ending">ENDING</span>
+                      <button class="del-btn" onclick="delEnding('${ch.id}','${r.id}','${e.id}')">✕</button>
+                    </div>
+                    <div class="card-body">
+                      <div class="field-row">
+                        <div class="field"><label>エンディング名</label>
+                          <input type="text" value="${esc(e.title)}" oninput="updEnding('${ch.id}','${r.id}','${e.id}','title',this.value)"></div>
+                      </div>
+                      <div class="field"><label>達成条件</label>
+                        <input type="text" value="${esc(e.condition)}" oninput="updEnding('${ch.id}','${r.id}','${e.id}','condition',this.value)" placeholder="例: 好感度≥80かつ全員生存"></div>
+                      <div class="field"><label>結末</label>
+                        <textarea oninput="updEnding('${ch.id}','${r.id}','${e.id}','summary',this.value)">${esc(e.summary)}</textarea></div>
+                    </div>
+                  </div>`).join('')}
+                <button class="fab fab-sec" style="font-size:11px;padding:5px 12px;margin-top:4px" onclick="addEnding('${ch.id}','${r.id}')">＋ エンディング追加</button>
+              </div>
+            </div>
+          </div>`).join('')}
+        <button class="fab fab-sec" style="font-size:11px;padding:5px 14px;margin-top:4px;margin-left:24px" onclick="addRoute('${ch.id}')">＋ ルート追加</button>
+      </div>
+    </div>`).join('');
+}
+function storyFab(){ return `<button class="fab fab-primary" onclick="addChapter()">＋ 章を追加</button>`; }
+
+function uid(){ return Math.random().toString(36).slice(2,8); }
+function addChapter(){ data.story.push({id:uid(),type:'chapter',title:'',summary:'',routes:[]}); save(); render(); }
+function delChapter(id){ confirm2('章を削除',`この章（とルート・エンディング全て）を削除しますか？`,()=>{ data.story=data.story.filter(c=>c.id!==id); save(); render(); }); }
+function updChapter(id,f,v){ const c=data.story.find(c=>c.id===id); if(c){c[f]=v;save();} }
+function addRoute(cid){ const c=data.story.find(c=>c.id===cid); if(c){c.routes=c.routes||[];c.routes.push({id:uid(),title:'',summary:'',condition:'',endings:[]});save();render();} }
+function delRoute(cid,rid){ const c=data.story.find(c=>c.id===cid); if(c){c.routes=c.routes.filter(r=>r.id!==rid);save();render();} }
+function updRoute(cid,rid,f,v){ const c=data.story.find(c=>c.id===cid),r=c?.routes?.find(r=>r.id===rid); if(r){r[f]=v;save();} }
+function addEnding(cid,rid){ const c=data.story.find(c=>c.id===cid),r=c?.routes?.find(r=>r.id===rid); if(r){r.endings=r.endings||[];r.endings.push({id:uid(),type:'ending',title:'',condition:'',summary:''});save();render();} }
+function delEnding(cid,rid,eid){ const c=data.story.find(c=>c.id===cid),r=c?.routes?.find(r=>r.id===rid); if(r){r.endings=r.endings.filter(e=>e.id!==eid);save();render();} }
+function updEnding(cid,rid,eid,f,v){ const c=data.story.find(c=>c.id===cid),r=c?.routes?.find(r=>r.id===rid),e=r?.endings?.find(e=>e.id===eid); if(e){e[f]=v;save();} }
+
+// ══════════════════════════════════════════════════════
+// CHARACTER TAB
+// ══════════════════════════════════════════════════════
+function renderChara(){
+  if(!data.chara.length) return `<div class="empty"><div class="empty-icon">👤</div>キャラクターがいません</div>`;
+  return data.chara.map(ch=>{
+    const roleLabel={pc:'主人公',npc:'NPC',enemy:'敵対'}[ch.role]||ch.role;
+    const roleTag={pc:'tag-pc',npc:'tag-npc',enemy:'tag-enemy'}[ch.role]||'tag-npc';
+    const stats=ch.stats||{体力:50,精神力:50,サバイバル技術:50,対話力:50};
+    const rels=ch.relations||[];
+    return `<div class="card">
+      <div class="card-head">
+        <span class="card-tag ${roleTag}">${roleLabel}</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text)">${esc(ch.name)||'名前未設定'}</span>
+        <button class="del-btn" onclick="delChara('${ch.id}')">✕</button>
+      </div>
+      <div class="card-body">
+        <div class="field-row">
+          <div class="field"><label>名前</label><input type="text" value="${esc(ch.name)}" oninput="updChara('${ch.id}','name',this.value)"></div>
+          <div class="field" style="max-width:70px"><label>年齢</label><input type="text" value="${esc(ch.age)}" oninput="updChara('${ch.id}','age',this.value)"></div>
+          <div class="field" style="max-width:80px"><label>性別</label><input type="text" value="${esc(ch.gender)}" oninput="updChara('${ch.id}','gender',this.value)"></div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="max-width:120px"><label>役割</label>
+            <select onchange="updChara('${ch.id}','role',this.value)">
+              <option value="pc" ${ch.role==='pc'?'selected':''}>主人公</option>
+              <option value="npc" ${ch.role==='npc'?'selected':''}>NPC</option>
+              <option value="enemy" ${ch.role==='enemy'?'selected':''}>敵対</option>
+            </select>
+          </div>
+          <div class="field" style="max-width:100px"><label>好感度初期値</label><input type="number" value="${ch.affinity_init||0}" oninput="updChara('${ch.id}','affinity_init',+this.value)" min="-100" max="100"></div>
+        </div>
+        <div class="field"><label>外見</label><input type="text" value="${esc(ch.appearance)}" oninput="updChara('${ch.id}','appearance',this.value)" placeholder="髪・体格・服装など"></div>
+        <div class="field"><label>性格</label><textarea oninput="updChara('${ch.id}','personality',this.value)">${esc(ch.personality)}</textarea></div>
+        <div class="field"><label>背景・経緯</label><textarea oninput="updChara('${ch.id}','background',this.value)">${esc(ch.background)}</textarea></div>
+        <div class="field"><label>ステータス</label>
+          ${Object.entries(stats).map(([k,v])=>`
+            <div class="stat-row" style="margin-top:6px">
+              <span class="stat-label">${k}</span>
+              <input type="range" min="0" max="100" value="${v}" oninput="updStat('${ch.id}','${k}',+this.value);this.nextElementSibling.nextElementSibling.textContent=this.value" style="flex:1">
+              <div class="stat-bar-bg" style="display:none"></div>
+              <span class="stat-val">${v}</span>
+            </div>`).join('')}
+        </div>
+        <div class="field"><label>関係性メモ</label>
+          <div class="chip-list" id="rels-${ch.id}">
+            ${rels.map((r,i)=>`<div class="chip">${esc(r)}<button class="chip-del" onclick="delRel('${ch.id}',${i})">×</button></div>`).join('')}
+            <button class="chip-add" onclick="addRel('${ch.id}')">＋ 追加</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function charaFab(){ return `<button class="fab fab-primary" onclick="addChara()">＋ キャラクター追加</button>`; }
+
+function addChara(){ data.chara.push({id:uid(),role:'npc',name:'',age:'',gender:'',appearance:'',personality:'',background:'',affinity_init:0,stats:{体力:50,精神力:50,サバイバル技術:50,対話力:50},relations:[]}); save(); render(); }
+function delChara(id){ confirm2('キャラクターを削除','このキャラクターを削除しますか？',()=>{ data.chara=data.chara.filter(c=>c.id!==id); save(); render(); }); }
+function updChara(id,f,v){ const c=data.chara.find(c=>c.id===id); if(c){c[f]=v;save(); if(f==='name'||f==='role') render();} }
+function updStat(id,key,v){ const c=data.chara.find(c=>c.id===id); if(c){c.stats=c.stats||{};c.stats[key]=v;save();} }
+function addRel(id){ const r=prompt('関係性を入力（例: アオイとは幼馴染）'); if(r){const c=data.chara.find(c=>c.id===id);if(c){c.relations=c.relations||[];c.relations.push(r);save();render();}} }
+function delRel(id,i){ const c=data.chara.find(c=>c.id===id); if(c){c.relations.splice(i,1);save();render();} }
+
+// ══════════════════════════════════════════════════════
+// ITEM TAB
+// ══════════════════════════════════════════════════════
+function renderItem(){
+  if(!data.item.length) return `<div class="empty"><div class="empty-icon">🎒</div>アイテムがありません</div>`;
+  return data.item.map(it=>{
+    const rarityTag={common:'tag-common',rare:'tag-rare',key:'tag-key'}[it.rarity]||'tag-common';
+    const rarityLabel={common:'COMMON',rare:'RARE',key:'KEY ITEM'}[it.rarity]||'COMMON';
+    return `<div class="card">
+      <div class="card-head">
+        <span class="card-tag ${rarityTag}">${rarityLabel}</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text)">${esc(it.name)||'名前未設定'}</span>
+        <button class="del-btn" onclick="delItem('${it.id}')">✕</button>
+      </div>
+      <div class="card-body">
+        <div class="field-row">
+          <div class="field"><label>アイテム名</label><input type="text" value="${esc(it.name)}" oninput="updItem('${it.id}','name',this.value)"></div>
+          <div class="field" style="max-width:110px"><label>カテゴリ</label>
+            <select onchange="updItem('${it.id}','category',this.value)">
+              ${['食料','医療','武器','道具','素材','情報','その他'].map(c=>`<option ${it.category===c?'selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>レアリティ</label>
+          <select onchange="updItem('${it.id}','rarity',this.value)">
+            <option value="common" ${it.rarity==='common'?'selected':''}>COMMON（よく手に入る）</option>
+            <option value="rare"   ${it.rarity==='rare'  ?'selected':''}>RARE（貴重）</option>
+            <option value="key"    ${it.rarity==='key'   ?'selected':''}>KEY ITEM（物語の鍵）</option>
+          </select>
+        </div>
+        <div class="field"><label>効果</label><input type="text" value="${esc(it.effect)}" oninput="updItem('${it.id}','effect',this.value)" placeholder="体力+20、特定フラグ解放 など">
+          ${it.effect?`<span class="item-effect">${esc(it.effect)}</span>`:''}
+        </div>
+        <div class="field"><label>入手方法・場所</label><input type="text" value="${esc(it.obtain)}" oninput="updItem('${it.id}','obtain',this.value)" placeholder="コンビニ・イベント報酬 など"></div>
+        <div class="field"><label>説明</label><textarea oninput="updItem('${it.id}','desc',this.value)">${esc(it.desc)}</textarea></div>
+        <div class="field"><label>備考・実装メモ</label><textarea oninput="updItem('${it.id}','notes',this.value)" placeholder="Godot実装時のメモなど">${esc(it.notes)}</textarea></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function itemFab(){ return `<button class="fab fab-primary" onclick="addItem()">＋ アイテム追加</button>`; }
+
+function addItem(){ data.item.push({id:uid(),rarity:'common',name:'',category:'道具',effect:'',obtain:'',desc:'',notes:''}); save(); render(); }
+function delItem(id){ confirm2('アイテムを削除','このアイテムを削除しますか？',()=>{ data.item=data.item.filter(i=>i.id!==id); save(); render(); }); }
+function updItem(id,f,v){ const i=data.item.find(i=>i.id===id); if(i){i[f]=v;save(); if(f==='name'||f==='rarity') render();} }
+
+// ══════════════════════════════════════════════════════
+// Util
+// ══════════════════════════════════════════════════════
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+let toastT;
+function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),2200); }
+function confirm2(title,msg,onOk){
+  document.getElementById('c-title').textContent=title;
+  document.getElementById('c-msg').textContent=msg;
+  const btn=document.getElementById('c-ok');
+  btn.onclick=()=>{ onOk(); closeModal('confirm-modal'); };
+  openModal('confirm-modal');
+}
+
+// ══════════════════════════════════════════════════════
+// Boot
+// ══════════════════════════════════════════════════════
+init();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/serihu-editor/sw.js');
+</script>
+</body>
+</html>
