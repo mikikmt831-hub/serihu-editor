@@ -266,6 +266,19 @@ input[type=range]{width:100%;accent-color:var(--acc)}
   </div>
 </div>
 
+<!-- パラメータ編集モーダル -->
+<div class="modal-overlay" id="statkeys-modal">
+  <div class="modal">
+    <h2>パラメータ名の編集</h2>
+    <p>全キャラクター共通のパラメータ名を変更・追加・削除できます。<br>既存キャラのデータは名前を変えても引き継がれます。</p>
+    <div id="statkeys-list" style="display:flex;flex-direction:column;gap:8px;margin:4px 0"></div>
+    <button class="chip-add" style="width:100%;padding:8px;border-radius:6px;font-size:12px" onclick="addStatKey()">＋ パラメータを追加</button>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="closeModal('statkeys-modal')">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -278,7 +291,8 @@ const FBKEY = 'gamespec_fb';
 let data = {
   story: [],    // chapters[]
   chara: [],    // characters[]
-  item:  []     // items[]
+  item:  [],    // items[]
+  statKeys: ['体力','精神力','サバイバル技術','対話力']
 };
 let currentTab = 'story';
 let fbApp=null, fbDb=null, fbAuth=null, currentUser=null, _unsub=null;
@@ -293,6 +307,7 @@ function init() {
   if (!data.story) data.story=[];
   if (!data.chara) data.chara=[];
   if (!data.item)  data.item=[];
+  if (!data.statKeys || !data.statKeys.length) data.statKeys=['体力','精神力','サバイバル技術','対話力'];
   if (!data.story.length) seedStory();
   if (!data.chara.length) seedChara();
   if (!data.item.length)  seedItem();
@@ -602,14 +617,15 @@ function renderChara(){
         <div class="field"><label>外見</label><input type="text" value="${esc(ch.appearance)}" oninput="updChara('${ch.id}','appearance',this.value)" placeholder="髪・体格・服装など"></div>
         <div class="field"><label>性格</label><textarea oninput="updChara('${ch.id}','personality',this.value)">${esc(ch.personality)}</textarea></div>
         <div class="field"><label>背景・経緯</label><textarea oninput="updChara('${ch.id}','background',this.value)">${esc(ch.background)}</textarea></div>
-        <div class="field"><label>ステータス</label>
-          ${Object.entries(stats).map(([k,v])=>`
-            <div class="stat-row" style="margin-top:6px">
-              <span class="stat-label">${k}</span>
-              <input type="range" min="0" max="100" value="${v}" oninput="updStat('${ch.id}','${k}',+this.value);this.nextElementSibling.nextElementSibling.textContent=this.value" style="flex:1">
-              <div class="stat-bar-bg" style="display:none"></div>
+        <div class="field"><label>ステータス <span style="color:var(--text3);font-size:10px;font-family:var(--mono)">— 右上の「パラメータ編集」で名前を変更</span></label>
+          ${data.statKeys.map(k=>{
+            const v=ch.stats?.[k]??50;
+            return `<div class="stat-row" style="margin-top:6px">
+              <span class="stat-label">${esc(k)}</span>
+              <input type="range" min="0" max="100" value="${v}" oninput="updStat('${ch.id}','${esc(k)}',+this.value);this.nextElementSibling.textContent=this.value" style="flex:1">
               <span class="stat-val">${v}</span>
-            </div>`).join('')}
+            </div>`;
+          }).join('')}
         </div>
         <div class="field"><label>関係性メモ</label>
           <div class="chip-list" id="rels-${ch.id}">
@@ -621,14 +637,62 @@ function renderChara(){
     </div>`;
   }).join('');
 }
-function charaFab(){ return `<button class="fab fab-primary" onclick="addChara()">＋ キャラクター追加</button>`; }
+function charaFab(){ return `<button class="fab fab-sec" onclick="showStatKeysModal()">パラメータ編集</button><button class="fab fab-primary" onclick="addChara()">＋ キャラクター追加</button>`; }
 
-function addChara(){ data.chara.push({id:uid(),role:'npc',name:'',age:'',gender:'',appearance:'',personality:'',background:'',affinity_init:0,stats:{体力:50,精神力:50,サバイバル技術:50,対話力:50},relations:[]}); save(); render(); }
+function addChara(){
+  const stats={};
+  data.statKeys.forEach(k=>stats[k]=50);
+  data.chara.push({id:uid(),role:'npc',name:'',age:'',gender:'',appearance:'',personality:'',background:'',affinity_init:0,stats,relations:[]});
+  save(); render();
+}
 function delChara(id){ confirm2('キャラクターを削除','このキャラクターを削除しますか？',()=>{ data.chara=data.chara.filter(c=>c.id!==id); save(); render(); }); }
 function updChara(id,f,v){ const c=data.chara.find(c=>c.id===id); if(c){c[f]=v;save(); if(f==='name'||f==='role') render();} }
 function updStat(id,key,v){ const c=data.chara.find(c=>c.id===id); if(c){c.stats=c.stats||{};c.stats[key]=v;save();} }
 function addRel(id){ const r=prompt('関係性を入力（例: アオイとは幼馴染）'); if(r){const c=data.chara.find(c=>c.id===id);if(c){c.relations=c.relations||[];c.relations.push(r);save();render();}} }
 function delRel(id,i){ const c=data.chara.find(c=>c.id===id); if(c){c.relations.splice(i,1);save();render();} }
+
+// ── stat keys editor ───────────────────────────────────
+function showStatKeysModal(){
+  renderStatKeysList();
+  openModal('statkeys-modal');
+}
+function renderStatKeysList(){
+  const el=document.getElementById('statkeys-list');
+  if(!el) return;
+  el.innerHTML=data.statKeys.map((k,i)=>`
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" value="${esc(k)}" style="flex:1"
+        onchange="renameStatKey(${i},this.value)" placeholder="パラメータ名">
+      <button class="del-btn" onclick="deleteStatKey(${i})">✕</button>
+    </div>`).join('');
+}
+function renameStatKey(i,newName){
+  newName=newName.trim(); if(!newName) return;
+  const old=data.statKeys[i]; if(old===newName) return;
+  if(data.statKeys.includes(newName)){toast('同じ名前が既にあります');return;}
+  data.statKeys[i]=newName;
+  data.chara.forEach(ch=>{ if(ch.stats&&old in ch.stats){ch.stats[newName]=ch.stats[old];delete ch.stats[old];} });
+  save();render();renderStatKeysList();
+  toast(`「${old}」→「${newName}」に変更しました`);
+}
+function deleteStatKey(i){
+  if(data.statKeys.length<=1){toast('パラメータは最低1つ必要です');return;}
+  const name=data.statKeys[i];
+  confirm2(`「${name}」を削除`,`全キャラクターからこのパラメータが削除されます。`,()=>{
+    data.statKeys.splice(i,1);
+    data.chara.forEach(ch=>{if(ch.stats) delete ch.stats[name];});
+    save();render();renderStatKeysList();
+  });
+}
+function addStatKey(){
+  const name=prompt('新しいパラメータ名'); if(!name||!name.trim()) return;
+  const n=name.trim();
+  if(data.statKeys.includes(n)){toast('同じ名前が既にあります');return;}
+  data.statKeys.push(n);
+  data.chara.forEach(ch=>{ch.stats=ch.stats||{};ch.stats[n]=50;});
+  save();render();renderStatKeysList();
+  toast(`「${n}」を追加しました`);
+}
 
 // ══════════════════════════════════════════════════════
 // ITEM TAB
