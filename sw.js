@@ -1,5 +1,5 @@
 const CACHE = 'dialogue-editor-v1';
-const ASSETS = ['/', '/index.html', '/manifest.json'];
+const ASSETS = ['/dialogue-editor/', '/dialogue-editor/index.html', '/dialogue-editor/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
