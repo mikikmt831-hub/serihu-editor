@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dialogue">
+<link rel="manifest" href="manifest.json">
+<title>Dialogue Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0d0d14;
+  --bg2:      #13131f;
+  --bg3:      #1a1a2a;
+  --bg4:      #21213a;
+  --line:     rgba(255,255,255,0.07);
+  --line2:    rgba(255,255,255,0.13);
+  --text:     #e8e8f0;
+  --text2:    #8888a8;
+  --text3:    #55556a;
+  --accent:   #7c6ef5;
+  --accent2:  #a093ff;
+  --green:    #4ec994;
+  --red:      #f06070;
+  --amber:    #f0a840;
+  --safe:     env(safe-area-inset-bottom, 0px);
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Noto Sans JP', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow: hidden; }
+
+/* ── Layout ── */
+.app { display: flex; height: 100dvh; }
+.sidebar {
+  width: 220px; min-width: 220px; background: var(--bg2);
+  border-right: 1px solid var(--line); display: flex; flex-direction: column;
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+}
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+/* ── Mobile sidebar overlay ── */
+@media (max-width: 680px) {
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
+    width: 80vw; max-width: 300px;
+    transform: translateX(-100%);
+    box-shadow: 8px 0 32px rgba(0,0,0,.6);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .overlay { display: none; position: fixed; inset: 0; z-index: 199; background: rgba(0,0,0,.5); backdrop-filter: blur(2px); }
+  .overlay.show { display: block; }
+}
+
+/* ── Topbar ── */
+.topbar {
+  height: 52px; padding: 0 14px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--line); background: var(--bg2); flex-shrink: 0;
+  padding-top: env(safe-area-inset-top, 0);
+}
+.topbar-title { font-size: 13px; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.hamburger { display: none; background: none; border: none; color: var(--text2); padding: 6px; cursor: pointer; }
+@media (max-width: 680px) { .hamburger { display: flex; } }
+
+/* ── Sidebar header ── */
+.sb-head {
+  padding: 14px 12px 10px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sb-logo { font-size: 11px; font-family: var(--mono); color: var(--accent2); letter-spacing: .08em; }
+.sb-actions { display: flex; gap: 4px; }
+
+/* ── Sync status bar ── */
+.sync-bar {
+  padding: 6px 12px; font-size: 11px; font-family: var(--mono);
+  border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 6px;
+  color: var(--text3); min-height: 30px;
+}
+.sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.sync-dot.ok { background: var(--green); }
+.sync-dot.busy { background: var(--amber); animation: pulse .8s ease-in-out infinite alternate; }
+.sync-dot.err { background: var(--red); }
+@keyframes pulse { to { opacity: .3; } }
+
+/* ── Scene list ── */
+.scene-list { flex: 1; overflow-y: auto; padding: 6px; }
+.scene-item {
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; gap: 7px; color: var(--text2);
+  font-size: 13px; transition: background .15s, color .15s;
+  user-select: none;
+}
+.scene-item:hover { background: var(--bg3); color: var(--text); }
+.scene-item.active { background: var(--bg4); color: var(--text); }
+.scene-pip { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; opacity: .7; }
+.scene-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scene-count { font-size: 10px; font-family: var(--mono); color: var(--text3); }
+
+/* ── Sidebar footer ── */
+.sb-foot { padding: 10px 8px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+.sb-btn {
+  width: 100%; padding: 7px 10px; background: none; border: 1px solid var(--line2);
+  border-radius: 6px; color: var(--text2); font-size: 12px; font-family: var(--sans);
+  cursor: pointer; text-align: left; transition: all .15s; display: flex; align-items: center; gap: 7px;
+}
+.sb-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--line2); }
+.sb-btn.danger:hover { color: var(--red); border-color: rgba(240,96,112,.3); }
+
+/* ── Node area ── */
+.node-area { flex: 1; overflow-y: auto; padding: 14px 14px 80px; scroll-behavior: smooth; }
+.empty-hint { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 13px; line-height: 2; }
+
+/* ── Node card ── */
+.node-card {
+  background: var(--bg2); border: 1px solid var(--line);
+  border-radius: 10px; margin-bottom: 10px; overflow: hidden;
+  transition: border-color .15s;
+}
+.node-card:focus-within { border-color: var(--line2); }
+.node-header {
+  padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+  background: var(--bg3); border-bottom: 1px solid var(--line);
+}
+.node-id { font-size: 10px; font-family: var(--mono); color: var(--text3); }
+.badge {
+  font-size: 10px; padding: 2px 8px; border-radius: 99px; font-family: var(--mono);
+  letter-spacing: .03em;
+}
+.badge-say    { background: rgba(124,110,245,.15); color: var(--accent2); }
+.badge-choice { background: rgba(78,201,148,.12); color: var(--green); }
+.badge-end    { background: rgba(240,96,112,.12); color: var(--red); }
+.badge-page   { background: rgba(240,168,64,.12); color: var(--amber); }
+.node-drag { cursor: grab; color: var(--text3); font-size: 14px; padding: 2px; }
+.spacer { flex: 1; }
+.del-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 15px; padding: 2px 4px; border-radius: 4px; transition: color .15s; }
+.del-btn:hover { color: var(--red); }
+
+/* ── Fields ── */
+.node-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+label { font-size: 11px; color: var(--text3); font-family: var(--mono); letter-spacing: .04em; }
+input[type=text], textarea, select {
+  background: var(--bg3); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); font-family: var(--sans); font-size: 13px;
+  padding: 7px 10px; outline: none; transition: border-color .15s; width: 100%;
+}
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 70px; line-height: 1.6; }
+select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2388a'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+input[type=number] { background: var(--bg3); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 13px; padding: 7px 10px; outline: none; width: 100%; }
+input[type=number]:focus { border-color: var(--accent); }
+
+/* ── Page break ── */
+.pagebreak-card {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 10px;
+  margin-bottom: 10px;
+}
+.pagebreak-line { flex: 1; height: 1px; background: rgba(240,168,64,.25); }
+.pagebreak-label { font-size: 11px; font-family: var(--mono); color: var(--amber); opacity: .7; white-space: nowrap; }
+
+/* ── Choices ── */
+.choices-list { display: flex; flex-direction: column; gap: 8px; }
+.choice-item { background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.choice-row { display: grid; gap: 8px; align-items: end; }
+.choice-row-3 { grid-template-columns: 1fr 70px 1fr; }
+.choice-row-1 { grid-template-columns: 1fr auto; align-items: center; }
+.add-choice { background: none; border: 1px dashed var(--line2); border-radius: 6px; width: 100%; padding: 7px; color: var(--text3); font-family: var(--sans); font-size: 12px; cursor: pointer; transition: all .15s; }
+.add-choice:hover { border-color: var(--accent); color: var(--accent2); }
+
+/* ── Add node bar ── */
+.add-bar {
+  position: sticky; bottom: 0; padding: 10px 14px;
+  padding-bottom: calc(10px + var(--safe));
+  background: linear-gradient(transparent, var(--bg) 40%);
+  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+}
+.add-btn {
+  padding: 7px 14px; background: var(--bg2); border: 1px solid var(--line2);
+  border-radius: 99px; color: var(--text2); font-size: 12px; font-family: var(--sans);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.add-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--accent); }
+
+/* ── Bottom toolbar ── */
+.bottom-bar {
+  border-top: 1px solid var(--line); background: var(--bg2);
+  padding: 8px 14px; padding-bottom: calc(8px + var(--safe));
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.tool-btn {
+  padding: 6px 12px; background: none; border: 1px solid var(--line2);
+  border-radius: 6px; color: var(--text2); font-size: 12px; font-family: var(--sans);
+  cursor: pointer; transition: all .15s;
+}
+.tool-btn:hover { background: var(--bg3); color: var(--text); }
+.tool-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tool-btn.primary:hover { background: var(--accent2); }
+
+/* ── Modal ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--line2); border-radius: 14px;
+  padding: 24px; width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 16px;
+}
+.modal h2 { font-size: 15px; font-weight: 500; }
+.modal p { font-size: 13px; color: var(--text2); line-height: 1.7; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.modal input[type=text], .modal input[type=password] {
+  width: 100%; background: var(--bg3); border: 1px solid var(--line);
+  border-radius: 6px; color: var(--text); padding: 9px 12px;
+  font-size: 13px; font-family: var(--sans); outline: none;
+}
+.modal input:focus { border-color: var(--accent); }
+.hint { font-size: 11px; color: var(--text3); line-height: 1.6; }
+.hint a { color: var(--accent2); }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; bottom: calc(70px + var(--safe)); left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--bg4); border: 1px solid var(--line2); border-radius: 8px;
+  padding: 9px 18px; font-size: 13px; color: var(--text);
+  opacity: 0; transition: all .25s; pointer-events: none; white-space: nowrap; z-index: 400;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── JSON preview ── */
+.json-preview {
+  flex: 1; overflow-y: auto; padding: 14px;
+  font-family: var(--mono); font-size: 11px; color: var(--text2); line-height: 1.8;
+  white-space: pre; background: var(--bg);
+}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sb-head">
+      <span class="sb-logo">DIALOGUE//</span>
+      <div class="sb-actions">
+        <button class="add-btn" style="padding:4px 10px;font-size:11px;border-radius:6px" onclick="addScene()">+ シーン</button>
+      </div>
+    </div>
+    <div class="sync-bar">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label">未接続</span>
+    </div>
+    <div class="scene-list" id="scene-list"></div>
+    <div class="sb-foot">
+      <button class="sb-btn" id="login-btn" onclick="handleLoginBtn()">
+        <span style="font-family:var(--mono);font-size:13px">G</span> <span id="login-label">Google でログイン</span>
+      </button>
+      <button class="sb-btn" onclick="syncNow()">
+        <span style="font-family:var(--mono);font-size:13px">↑</span> 今すぐ同期
+      </button>
+      <button class="sb-btn" onclick="showFirebaseModal()">
+        <span style="font-family:var(--mono);font-size:13px">⚙</span> Firebase 設定
+      </button>
+      <button class="sb-btn" onclick="showJsonModal()">
+        <span style="font-family:var(--mono);font-size:13px">{}</span> JSON 出力
+      </button>
+      <button class="sb-btn danger" onclick="confirmClear()">
+        <span style="font-family:var(--mono);font-size:13px">✕</span> データ消去
+      </button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <button class="hamburger" id="hamburger" onclick="toggleSidebar()">
+        <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+          <rect y="0" width="18" height="2" rx="1" fill="currentColor"/>
+          <rect y="6" width="18" height="2" rx="1" fill="currentColor"/>
+          <rect y="12" width="18" height="2" rx="1" fill="currentColor"/>
+        </svg>
+      </button>
+      <div class="topbar-title" id="topbar-title">シーンを選択</div>
+      <button class="tool-btn" id="rename-btn" onclick="renameScene()" style="display:none;font-size:11px;padding:5px 10px">名前変更</button>
+    </div>
+
+    <div class="node-area" id="node-area">
+      <div class="empty-hint">← シーンを選ぶか<br>新規作成してください</div>
+    </div>
+
+    <div class="add-bar" id="add-bar" style="display:none">
+      <button class="add-btn" onclick="addNode('say')">＋ セリフ</button>
+      <button class="add-btn" onclick="addNode('choice')">＋ 選択肢</button>
+      <button class="add-btn" onclick="addNode('pagebreak')">＋ 改ページ</button>
+      <button class="add-btn" onclick="addNode('end')">＋ 終了</button>
+    </div>
+
+    <div class="bottom-bar" id="bottom-bar" style="display:none">
+      <button class="tool-btn" onclick="moveSceneUp()">↑ シーン順</button>
+      <button class="tool-btn" onclick="moveSceneDown()">↓</button>
+      <button class="tool-btn danger" onclick="deleteCurrentScene()" style="margin-left:auto">シーン削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase設定モーダル -->
+<div class="modal-overlay" id="firebase-modal">
+  <div class="modal">
+    <h2>Firebase 設定</h2>
+    <p>Firebase コンソールで作成したプロジェクトの設定値を貼り付けてください。</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="field">
+        <label>API KEY</label>
+        <input type="text" id="fb-apikey" placeholder="AIzaSy...">
+      </div>
+      <div class="field">
+        <label>AUTH DOMAIN</label>
+        <input type="text" id="fb-authdomain" placeholder="your-project.firebaseapp.com">
+      </div>
+      <div class="field">
+        <label>PROJECT ID</label>
+        <input type="text" id="fb-projectid" placeholder="your-project-id">
+      </div>
+    </div>
+    <p class="hint">
+      取得手順: <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com ↗</a><br>
+      プロジェクト作成 → プロジェクト設定 → 「マイアプリ」→ ウェブアプリ追加 → firebaseConfig をコピー<br>
+      Authentication → ログイン方法 → Google を有効化<br>
+      Firestore Database → データベースを作成（本番モード）
+    </p>
+    <div class="modal-actions">
+      <button class="tool-btn" onclick="closeModal('firebase-modal')">キャンセル</button>
+      <button class="tool-btn primary" onclick="saveFirebaseSettings()">保存して Google ログイン</button>
+    </div>
+  </div>
+</div>
+
+<!-- ログイン状態表示モーダル -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <h2>アカウント</h2>
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+      <img id="user-avatar" src="" alt="" style="width:40px;height:40px;border-radius:50%;display:none">
+      <div>
+        <div id="user-name" style="font-size:14px;font-weight:500"></div>
+        <div id="user-email" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="tool-btn" onclick="closeModal('account-modal')">閉じる</button>
+      <button class="tool-btn danger" onclick="signOut()" style="color:var(--red);border-color:rgba(240,96,112,.4)">ログアウト</button>
+    </div>
+  </div>
+</div>
+
+<!-- JSON出力モーダル -->
+<div class="modal-overlay" id="json-modal">
+  <div class="modal" style="max-width:600px;height:80vh">
+    <h2>JSON 出力</h2>
+    <div class="json-preview" id="json-preview"></div>
+    <div class="modal-actions">
+      <button class="tool-btn" onclick="closeModal('json-modal')">閉じる</button>
+      <button class="tool-btn primary" onclick="copyJson()">クリップボードにコピー</button>
+    </div>
+  </div>
+</div>
+
+<!-- 確認モーダル -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-msg"></p>
+    <div class="modal-actions">
+      <button class="tool-btn" onclick="closeModal('confirm-modal')">キャンセル</button>
+      <button class="tool-btn" id="confirm-ok" style="border-color:var(--red);color:var(--red)">削除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+let data = { scenes: {} };
+let currentScene = null;
+let syncTimer = null;
+let dirty = false;
+let fbApp = null, fbDb = null, fbAuth = null, currentUser = null;
+
+const STORAGE_KEY = 'dialogue_data_v2';
+const FB_KEY      = 'fb_config';
+
+// ── Firebase dynamic loader ────────────────────────────
+async function loadFirebase(config) {
+  if (fbApp) return true;
+  try {
+    const { initializeApp }         = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getFirestore, doc, setDoc, getDoc, onSnapshot }
+                                    = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut: fbSignOut }
+                                    = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+    fbApp  = initializeApp(config);
+    fbDb   = getFirestore(fbApp);
+    fbAuth = getAuth(fbApp);
+
+    window._fb = { doc, setDoc, getDoc, onSnapshot, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, fbSignOut };
+
+    onAuthStateChanged(fbAuth, user => {
+      currentUser = user;
+      if (user) {
+        updateLoginUI(user);
+        listenFirestore(user.uid);
+      } else {
+        updateLoginUI(null);
+        updateSyncStatus('none', 'ログインしてください');
+      }
+    });
+    return true;
+  } catch(e) {
+    console.error('Firebase load error', e);
+    return false;
+  }
+}
+
+// ── Init ───────────────────────────────────────────────
+function init() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) { try { data = JSON.parse(raw); } catch(e) {} }
+  if (!data.scenes) data.scenes = {};
+  if (Object.keys(data.scenes).length === 0) {
+    data.scenes['scene_01'] = { name: 'はじめての会話', nodes: [] };
+  }
+  // Firebase 設定が保存済みなら自動ロード
+  const fbConfig = getSavedFbConfig();
+  if (fbConfig) loadFirebase(fbConfig);
+  else updateSyncStatus('none', 'Firebase 未設定');
+
+  renderSidebar();
+  const first = Object.keys(data.scenes)[0];
+  selectScene(first);
+}
+
+function getSavedFbConfig() {
+  try { return JSON.parse(localStorage.getItem(FB_KEY)); } catch { return null; }
+}
+
+// ── Persist ────────────────────────────────────────────
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  dirty = true;
+  clearTimeout(syncTimer);
+  // 編集から5秒後に自動同期
+  syncTimer = setTimeout(() => { if (dirty && currentUser) syncNow(); }, 5000);
+}
+
+// ── Sidebar ────────────────────────────────────────────
+function renderSidebar() {
+  const el = document.getElementById('scene-list');
+  el.innerHTML = '';
+  Object.entries(data.scenes).forEach(([id, sc]) => {
+    const div = document.createElement('div');
+    div.className = 'scene-item' + (id === currentScene ? ' active' : '');
+    const count = (sc.nodes || []).filter(n => n.type === 'say').length;
+    div.innerHTML = `<div class="scene-pip"></div>
+      <span class="scene-name">${esc(sc.name)}</span>
+      <span class="scene-count">${count}</span>`;
+    div.onclick = () => { selectScene(id); closeSidebar(); };
+    el.appendChild(div);
+  });
+}
+
+function selectScene(id) {
+  currentScene = id;
+  const sc = data.scenes[id];
+  document.getElementById('topbar-title').textContent = sc ? sc.name : 'シーンを選択';
+  document.getElementById('rename-btn').style.display = sc ? '' : 'none';
+  document.getElementById('add-bar').style.display    = sc ? '' : 'none';
+  document.getElementById('bottom-bar').style.display = sc ? '' : 'none';
+  renderNodes();
+  renderSidebar();
+}
+
+function addScene() {
+  const name = prompt('シーン名', '新しいシーン');
+  if (!name) return;
+  const keys = Object.keys(data.scenes);
+  const num  = keys.length + 1;
+  const id   = 'scene_' + String(num).padStart(2, '0');
+  data.scenes[id] = { name, nodes: [] };
+  save();
+  selectScene(id);
+  closeSidebar();
+}
+
+function renameScene() {
+  if (!currentScene) return;
+  const name = prompt('シーン名', data.scenes[currentScene].name);
+  if (!name) return;
+  data.scenes[currentScene].name = name;
+  save();
+  document.getElementById('topbar-title').textContent = name;
+  renderSidebar();
+}
+
+function deleteCurrentScene() {
+  if (!currentScene) return;
+  showConfirm('シーンを削除', `「${data.scenes[currentScene].name}」を削除しますか？`, () => {
+    delete data.scenes[currentScene];
+    save();
+    const keys = Object.keys(data.scenes);
+    selectScene(keys.length ? keys[0] : null);
+  });
+}
+
+function moveSceneUp() {
+  const keys = Object.keys(data.scenes);
+  const idx  = keys.indexOf(currentScene);
+  if (idx <= 0) return;
+  const tmp = {}; keys.splice(idx, 1); keys.splice(idx - 1, 0, currentScene);
+  keys.forEach(k => tmp[k] = data.scenes[k]);
+  data.scenes = tmp; save(); renderSidebar();
+}
+function moveSceneDown() {
+  const keys = Object.keys(data.scenes);
+  const idx  = keys.indexOf(currentScene);
+  if (idx < 0 || idx >= keys.length - 1) return;
+  const tmp = {}; keys.splice(idx, 1); keys.splice(idx + 1, 0, currentScene);
+  keys.forEach(k => tmp[k] = data.scenes[k]);
+  data.scenes = tmp; save(); renderSidebar();
+}
+
+// ── Mobile sidebar ─────────────────────────────────────
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ── Nodes ──────────────────────────────────────────────
+function getNodes() { return data.scenes[currentScene]?.nodes || []; }
+function genId() {
+  const nums = getNodes().map(n => parseInt(n.id?.replace('n',''))||0);
+  return 'n' + ((nums.length ? Math.max(...nums) : 0) + 1);
+}
+function allIds() { return getNodes().map(n => n.id); }
+
+function renderNodes() {
+  const area = document.getElementById('node-area');
+  const sc   = data.scenes[currentScene];
+  if (!sc) { area.innerHTML = '<div class="empty-hint">← シーンを選んでください</div>'; return; }
+  if (!sc.nodes?.length) { area.innerHTML = '<div class="empty-hint">ノードを追加してください</div>'; return; }
+
+  area.innerHTML = sc.nodes.map((node, i) => renderNode(node, i)).join('');
+}
+
+function renderNode(node, i) {
+  const ids = allIds();
+
+  if (node.type === 'pagebreak') {
+    return `<div class="pagebreak-card" id="card-${node.id}">
+      <div class="pagebreak-line"></div>
+      <span class="pagebreak-label">── 改ページ ──</span>
+      <div class="pagebreak-line"></div>
+      <button class="del-btn" onclick="deleteNode('${node.id}')">✕</button>
+    </div>`;
+  }
+
+  if (node.type === 'end') {
+    return `<div class="node-card" id="card-${node.id}">
+      <div class="node-header">
+        <span class="node-id">${node.id}</span>
+        <span class="badge badge-end">END</span>
+        <div class="spacer"></div>
+        <button class="del-btn" onclick="deleteNode('${node.id}')">✕</button>
+      </div>
+      <div class="node-body" style="padding:10px 14px">
+        <span style="font-size:12px;color:var(--text3)">会話終了ノード</span>
+      </div>
+    </div>`;
+  }
+
+  const nextOpts = ids.filter(id => id !== node.id)
+    .map(id => `<option value="${id}" ${node.next===id?'selected':''}>${id}</option>`).join('');
+
+  if (node.type === 'say') {
+    return `<div class="node-card" id="card-${node.id}">
+      <div class="node-header">
+        <span class="node-id">${node.id}</span>
+        <span class="badge badge-say">SAY</span>
+        <div class="spacer"></div>
+        <button class="del-btn" onclick="deleteNode('${node.id}')">✕</button>
+      </div>
+      <div class="node-body">
+        <div class="field-row">
+          <div class="field">
+            <label>CHARACTER</label>
+            <input type="text" value="${esc(node.character||'')}" oninput="upd('${node.id}','character',this.value)" placeholder="キャラクター名">
+          </div>
+          <div class="field" style="max-width:120px">
+            <label>EXPRESSION</label>
+            <select onchange="upd('${node.id}','expression',this.value)">
+              ${['normal','happy','sad','angry','surprised','embarrassed'].map(e=>`<option value="${e}" ${(node.expression||'normal')===e?'selected':''}>${e}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>TEXT</label>
+          <textarea oninput="upd('${node.id}','text',this.value)" placeholder="セリフを入力...">${esc(node.text||'')}</textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>PORTRAIT</label>
+            <input type="text" value="${esc(node.portrait||'dummy')}" oninput="upd('${node.id}','portrait',this.value)" placeholder="dummy / res://...">
+          </div>
+          <div class="field">
+            <label>BACKGROUND</label>
+            <input type="text" value="${esc(node.background||'')}" oninput="upd('${node.id}','background',this.value)" placeholder="dummy / res://... / 空=維持">
+          </div>
+        </div>
+        <div class="field">
+          <label>NEXT →</label>
+          <select onchange="upd('${node.id}','next',this.value)">
+            <option value="">なし（終了）</option>
+            ${nextOpts}
+          </select>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (node.type === 'choice') {
+    const choices = node.choices || [];
+    const choiceHtml = choices.map((c, ci) => `
+      <div class="choice-item">
+        <div class="field">
+          <label>CHOICE TEXT</label>
+          <div class="choice-row choice-row-1">
+            <input type="text" value="${esc(c.text||'')}" oninput="updChoice('${node.id}',${ci},'text',this.value)" placeholder="選択肢テキスト">
+            <button class="del-btn" onclick="delChoice('${node.id}',${ci})">✕</button>
+          </div>
+        </div>
+        <div class="choice-row choice-row-3">
+          <div class="field">
+            <label>NEXT →</label>
+            <select onchange="updChoice('${node.id}',${ci},'next',this.value)">
+              <option value="">なし</option>
+              ${ids.filter(id=>id!==node.id).map(id=>`<option value="${id}" ${c.next===id?'selected':''}>${id}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>AFFINITY</label>
+            <input type="number" value="${c.affinity||0}" oninput="updChoice('${node.id}',${ci},'affinity',+this.value)">
+          </div>
+          <div class="field">
+            <label>PORTRAIT</label>
+            <input type="text" value="${esc(c.portrait||'')}" oninput="updChoice('${node.id}',${ci},'portrait',this.value)" placeholder="変化なし=空">
+          </div>
+        </div>
+      </div>`).join('');
+
+    return `<div class="node-card" id="card-${node.id}">
+      <div class="node-header">
+        <span class="node-id">${node.id}</span>
+        <span class="badge badge-choice">CHOICE</span>
+        <div class="spacer"></div>
+        <button class="del-btn" onclick="deleteNode('${node.id}')">✕</button>
+      </div>
+      <div class="node-body">
+        <div class="field">
+          <label>CHARACTER（空=プレイヤー）</label>
+          <input type="text" value="${esc(node.character||'')}" oninput="upd('${node.id}','character',this.value)">
+        </div>
+        <div class="choices-list">${choiceHtml}</div>
+        <button class="add-choice" onclick="addChoice('${node.id}')">＋ 選択肢を追加</button>
+      </div>
+    </div>`;
+  }
+  return '';
+}
+
+function addNode(type) {
+  if (!currentScene) return;
+  const id   = genId();
+  const node = { id, type };
+  if (type === 'say')    Object.assign(node, { character:'', expression:'normal', text:'', portrait:'dummy', background:'', next:'' });
+  if (type === 'choice') Object.assign(node, { character:'', choices:[] });
+  if (type === 'pagebreak') { /* no extra fields */ }
+  getNodes().push(node);
+  save(); renderNodes();
+  setTimeout(() => document.getElementById('card-'+id)?.scrollIntoView({ behavior:'smooth', block:'nearest' }), 50);
+  renderSidebar();
+}
+
+function deleteNode(id) {
+  const sc = data.scenes[currentScene];
+  sc.nodes = sc.nodes.filter(n => n.id !== id);
+  sc.nodes.forEach(n => {
+    if (n.next === id) n.next = '';
+    if (n.choices) n.choices.forEach(c => { if (c.next === id) c.next = ''; });
+  });
+  save(); renderNodes(); renderSidebar();
+}
+
+function upd(id, field, val) {
+  const node = getNodes().find(n => n.id === id);
+  if (node) { node[field] = val; save(); renderSidebar(); }
+}
+
+function addChoice(nodeId) {
+  const node = getNodes().find(n => n.id === nodeId);
+  if (node) { node.choices.push({ text:'', next:'', affinity:0, portrait:'' }); save(); renderNodes(); }
+}
+function delChoice(nodeId, ci) {
+  const node = getNodes().find(n => n.id === nodeId);
+  if (node) { node.choices.splice(ci, 1); save(); renderNodes(); }
+}
+function updChoice(nodeId, ci, field, val) {
+  const node = getNodes().find(n => n.id === nodeId);
+  if (node?.choices[ci]) { node.choices[ci][field] = val; save(); }
+}
+
+// ── Firebase Auth ──────────────────────────────────────
+function handleLoginBtn() {
+  if (currentUser) { showAccountModal(); return; }
+  const cfg = getSavedFbConfig();
+  if (!cfg) { showFirebaseModal(); return; }
+  loadFirebase(cfg).then(ok => { if (ok) googleLogin(); });
+}
+
+async function googleLogin() {
+  try {
+    const { signInWithPopup, GoogleAuthProvider } = window._fb;
+    updateSyncStatus('busy', 'ログイン中...');
+    await signInWithPopup(fbAuth, new GoogleAuthProvider());
+  } catch(e) {
+    updateSyncStatus('err', 'ログイン失敗');
+    showToast('ログイン失敗: ' + e.message);
+  }
+}
+
+async function signOut() {
+  await window._fb.fbSignOut(fbAuth);
+  closeModal('account-modal');
+  showToast('ログアウトしました');
+}
+
+function updateLoginUI(user) {
+  const btn = document.getElementById('login-btn');
+  const lbl = document.getElementById('login-label');
+  if (user) {
+    lbl.textContent = user.displayName || user.email;
+    updateSyncStatus('ok', 'ログイン済み');
+  } else {
+    lbl.textContent = 'Google でログイン';
+    updateSyncStatus('none', 'ログインしてください');
+  }
+}
+
+function showAccountModal() {
+  if (!currentUser) return;
+  document.getElementById('user-name').textContent  = currentUser.displayName || '';
+  document.getElementById('user-email').textContent = currentUser.email || '';
+  const av = document.getElementById('user-avatar');
+  if (currentUser.photoURL) { av.src = currentUser.photoURL; av.style.display = ''; }
+  document.getElementById('account-modal').classList.add('show');
+}
+
+// ── Firestore Sync ─────────────────────────────────────
+let _unsubscribe = null;
+
+function listenFirestore(uid) {
+  if (_unsubscribe) _unsubscribe();
+  const { doc, onSnapshot } = window._fb;
+  const ref = doc(fbDb, 'users', uid, 'data', 'dialogue');
+  updateSyncStatus('busy', '接続中...');
+  _unsubscribe = onSnapshot(ref, snap => {
+    if (snap.exists()) {
+      const remote = snap.data();
+      // ローカルより新しい場合だけ上書き（updatedAt で比較）
+      const localTs  = data._updatedAt || 0;
+      const remoteTs = remote._updatedAt || 0;
+      if (remoteTs > localTs) {
+        data = remote;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        renderSidebar();
+        if (currentScene && !data.scenes[currentScene]) {
+          selectScene(Object.keys(data.scenes)[0] || null);
+        } else {
+          renderNodes();
+        }
+        showToast('クラウドから更新を取得しました');
+      }
+    }
+    updateSyncStatus('ok', '同期済み');
+    dirty = false;
+  }, err => {
+    updateSyncStatus('err', 'Firestore エラー');
+    console.error(err);
+  });
+}
+
+async function syncNow() {
+  if (!currentUser || !fbDb) {
+    showToast(getSavedFbConfig() ? 'ログインしてください' : 'Firebase を設定してください');
+    return;
+  }
+  updateSyncStatus('busy', '同期中...');
+  try {
+    const { doc, setDoc } = window._fb;
+    const ref = doc(fbDb, 'users', currentUser.uid, 'data', 'dialogue');
+    data._updatedAt = Date.now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    await setDoc(ref, data);
+    dirty = false;
+    updateSyncStatus('ok', '同期済み ' + new Date().toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' }));
+    showToast('クラウドに保存しました');
+  } catch(e) {
+    updateSyncStatus('err', 'エラー');
+    showToast('同期失敗: ' + e.message);
+  }
+}
+
+// ── Firebase config modal ──────────────────────────────
+function showFirebaseModal() {
+  const cfg = getSavedFbConfig() || {};
+  document.getElementById('fb-apikey').value     = cfg.apiKey || '';
+  document.getElementById('fb-authdomain').value = cfg.authDomain || '';
+  document.getElementById('fb-projectid').value  = cfg.projectId || '';
+  document.getElementById('firebase-modal').classList.add('show');
+}
+
+function saveFirebaseSettings() {
+  const config = {
+    apiKey:     document.getElementById('fb-apikey').value.trim(),
+    authDomain: document.getElementById('fb-authdomain').value.trim(),
+    projectId:  document.getElementById('fb-projectid').value.trim(),
+  };
+  if (!config.apiKey || !config.projectId) { showToast('API Key と Project ID は必須です'); return; }
+  localStorage.setItem(FB_KEY, JSON.stringify(config));
+  closeModal('firebase-modal');
+  loadFirebase(config).then(ok => { if (ok) googleLogin(); });
+}
+
+// ── JSON output ────────────────────────────────────────
+function showJsonModal() {
+  document.getElementById('json-preview').textContent = JSON.stringify(data, null, 2);
+  document.getElementById('json-modal').classList.add('show');
+}
+function copyJson() {
+  navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+    .then(() => { showToast('コピーしました'); closeModal('json-modal'); });
+}
+
+// ── Modal ──────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function showConfirm(title, msg, onOk) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent   = msg;
+  const btn = document.getElementById('confirm-ok');
+  btn.onclick = () => { onOk(); closeModal('confirm-modal'); };
+  document.getElementById('confirm-modal').classList.add('show');
+}
+function confirmClear() {
+  showConfirm('全データ消去', 'すべてのシーンとノードを削除します。この操作は取り消せません。', () => {
+    data = { scenes: {} };
+    localStorage.removeItem(STORAGE_KEY);
+    currentScene = null;
+    selectScene(null);
+    renderSidebar();
+    showToast('データを消去しました');
+  });
+}
+
+// ── Toast ──────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── Util ───────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Sync status ────────────────────────────────────────
+function updateSyncStatus(state, label) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot ' + ({ ok:'ok', busy:'busy', err:'err' }[state] || '');
+  lbl.textContent = label || ({ ok:'同期済み', busy:'同期中...', err:'エラー', none:'未接続' }[state] || '未接続');
+}
+
+// ── Start ──────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
