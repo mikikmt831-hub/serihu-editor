@@ -262,11 +262,14 @@ input[type=number]:focus { border-color: var(--accent); }
     </div>
     <div class="scene-list" id="scene-list"></div>
     <div class="sb-foot">
-      <button class="sb-btn" onclick="showGistModal()">
-        <span style="font-family:var(--mono);font-size:13px">⟳</span> Gist 同期設定
+      <button class="sb-btn" id="login-btn" onclick="handleLoginBtn()">
+        <span style="font-family:var(--mono);font-size:13px">G</span> <span id="login-label">Google でログイン</span>
       </button>
       <button class="sb-btn" onclick="syncNow()">
         <span style="font-family:var(--mono);font-size:13px">↑</span> 今すぐ同期
+      </button>
+      <button class="sb-btn" onclick="showFirebaseModal()">
+        <span style="font-family:var(--mono);font-size:13px">⚙</span> Firebase 設定
       </button>
       <button class="sb-btn" onclick="showJsonModal()">
         <span style="font-family:var(--mono);font-size:13px">{}</span> JSON 出力
@@ -310,28 +313,52 @@ input[type=number]:focus { border-color: var(--accent); }
   </div>
 </div>
 
-<!-- Gist設定モーダル -->
-<div class="modal-overlay" id="gist-modal">
+<!-- Firebase設定モーダル -->
+<div class="modal-overlay" id="firebase-modal">
   <div class="modal">
-    <h2>Gist 同期設定</h2>
-    <p>GitHub の Personal Access Token（gist スコープのみでOK）と Gist ID を入力してください。</p>
+    <h2>Firebase 設定</h2>
+    <p>Firebase コンソールで作成したプロジェクトの設定値を貼り付けてください。</p>
     <div style="display:flex;flex-direction:column;gap:10px">
       <div class="field">
-        <label>GITHUB TOKEN</label>
-        <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
+        <label>API KEY</label>
+        <input type="text" id="fb-apikey" placeholder="AIzaSy...">
       </div>
       <div class="field">
-        <label>GIST ID（新規作成する場合は空欄）</label>
-        <input type="text" id="gh-gist-id" placeholder="abc123def456...">
+        <label>AUTH DOMAIN</label>
+        <input type="text" id="fb-authdomain" placeholder="your-project.firebaseapp.com">
+      </div>
+      <div class="field">
+        <label>PROJECT ID</label>
+        <input type="text" id="fb-projectid" placeholder="your-project-id">
       </div>
     </div>
     <p class="hint">
-      Token の取得: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → New token → Gists: Read and write<br>
-      <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens ↗</a>
+      取得手順: <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com ↗</a><br>
+      プロジェクト作成 → プロジェクト設定 → 「マイアプリ」→ ウェブアプリ追加 → firebaseConfig をコピー<br>
+      Authentication → ログイン方法 → Google を有効化<br>
+      Firestore Database → データベースを作成（本番モード）
     </p>
     <div class="modal-actions">
-      <button class="tool-btn" onclick="closeModal('gist-modal')">キャンセル</button>
-      <button class="tool-btn primary" onclick="saveGistSettings()">保存して接続テスト</button>
+      <button class="tool-btn" onclick="closeModal('firebase-modal')">キャンセル</button>
+      <button class="tool-btn primary" onclick="saveFirebaseSettings()">保存して Google ログイン</button>
+    </div>
+  </div>
+</div>
+
+<!-- ログイン状態表示モーダル -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <h2>アカウント</h2>
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+      <img id="user-avatar" src="" alt="" style="width:40px;height:40px;border-radius:50%;display:none">
+      <div>
+        <div id="user-name" style="font-size:14px;font-weight:500"></div>
+        <div id="user-email" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="tool-btn" onclick="closeModal('account-modal')">閉じる</button>
+      <button class="tool-btn danger" onclick="signOut()" style="color:var(--red);border-color:rgba(240,96,112,.4)">ログアウト</button>
     </div>
   </div>
 </div>
@@ -366,14 +393,45 @@ input[type=number]:focus { border-color: var(--accent); }
 // ── State ──────────────────────────────────────────────
 let data = { scenes: {} };
 let currentScene = null;
-let gistToken = '';
-let gistId = '';
 let syncTimer = null;
 let dirty = false;
+let fbApp = null, fbDb = null, fbAuth = null, currentUser = null;
 
 const STORAGE_KEY = 'dialogue_data_v2';
-const TOKEN_KEY   = 'gh_token';
-const GISTID_KEY  = 'gh_gist_id';
+const FB_KEY      = 'fb_config';
+
+// ── Firebase dynamic loader ────────────────────────────
+async function loadFirebase(config) {
+  if (fbApp) return true;
+  try {
+    const { initializeApp }         = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getFirestore, doc, setDoc, getDoc, onSnapshot }
+                                    = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut: fbSignOut }
+                                    = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+    fbApp  = initializeApp(config);
+    fbDb   = getFirestore(fbApp);
+    fbAuth = getAuth(fbApp);
+
+    window._fb = { doc, setDoc, getDoc, onSnapshot, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, fbSignOut };
+
+    onAuthStateChanged(fbAuth, user => {
+      currentUser = user;
+      if (user) {
+        updateLoginUI(user);
+        listenFirestore(user.uid);
+      } else {
+        updateLoginUI(null);
+        updateSyncStatus('none', 'ログインしてください');
+      }
+    });
+    return true;
+  } catch(e) {
+    console.error('Firebase load error', e);
+    return false;
+  }
+}
 
 // ── Init ───────────────────────────────────────────────
 function init() {
@@ -383,12 +441,18 @@ function init() {
   if (Object.keys(data.scenes).length === 0) {
     data.scenes['scene_01'] = { name: 'はじめての会話', nodes: [] };
   }
-  gistToken = localStorage.getItem(TOKEN_KEY) || '';
-  gistId    = localStorage.getItem(GISTID_KEY) || '';
-  updateSyncStatus(gistToken ? 'ok' : 'none');
+  // Firebase 設定が保存済みなら自動ロード
+  const fbConfig = getSavedFbConfig();
+  if (fbConfig) loadFirebase(fbConfig);
+  else updateSyncStatus('none', 'Firebase 未設定');
+
   renderSidebar();
   const first = Object.keys(data.scenes)[0];
   selectScene(first);
+}
+
+function getSavedFbConfig() {
+  try { return JSON.parse(localStorage.getItem(FB_KEY)); } catch { return null; }
 }
 
 // ── Persist ────────────────────────────────────────────
@@ -396,7 +460,8 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   dirty = true;
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => { if (gistToken && dirty) syncNow(); }, 4000);
+  // 編集から5秒後に自動同期
+  syncTimer = setTimeout(() => { if (dirty && currentUser) syncNow(); }, 5000);
 }
 
 // ── Sidebar ────────────────────────────────────────────
@@ -532,6 +597,11 @@ function renderNode(node, i) {
     .map(id => `<option value="${id}" ${node.next===id?'selected':''}>${id}</option>`).join('');
 
   if (node.type === 'say') {
+    const fadeOpts = (field) => ['none','black_in','black_out','white_in','white_out']
+      .map(v => {
+        const label = {none:'なし', black_in:'暗転 → 明', black_out:'明 → 暗転', white_in:'白フェード → 明', white_out:'明 → 白フェード'}[v];
+        return `<option value="${v}" ${(node[field]||'none')===v?'selected':''}>${label}</option>`;
+      }).join('');
     return `<div class="node-card" id="card-${node.id}">
       <div class="node-header">
         <span class="node-id">${node.id}</span>
@@ -564,6 +634,16 @@ function renderNode(node, i) {
           <div class="field">
             <label>BACKGROUND</label>
             <input type="text" value="${esc(node.background||'')}" oninput="upd('${node.id}','background',this.value)" placeholder="dummy / res://... / 空=維持">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>FADE IN（このノード表示前）</label>
+            <select onchange="upd('${node.id}','fade_in',this.value)">${fadeOpts('fade_in')}</select>
+          </div>
+          <div class="field">
+            <label>FADE OUT（次へ進む直前）</label>
+            <select onchange="upd('${node.id}','fade_out',this.value)">${fadeOpts('fade_out')}</select>
           </div>
         </div>
         <div class="field">
@@ -631,7 +711,7 @@ function addNode(type) {
   if (!currentScene) return;
   const id   = genId();
   const node = { id, type };
-  if (type === 'say')    Object.assign(node, { character:'', expression:'normal', text:'', portrait:'dummy', background:'', next:'' });
+  if (type === 'say')    Object.assign(node, { character:'', expression:'normal', text:'', portrait:'dummy', background:'', fade_in:'none', fade_out:'none', next:'' });
   if (type === 'choice') Object.assign(node, { character:'', choices:[] });
   if (type === 'pagebreak') { /* no extra fields */ }
   getNodes().push(node);
@@ -668,87 +748,126 @@ function updChoice(nodeId, ci, field, val) {
   if (node?.choices[ci]) { node.choices[ci][field] = val; save(); }
 }
 
-// ── Gist Sync ──────────────────────────────────────────
-function updateSyncStatus(state, label) {
-  const dot = document.getElementById('sync-dot');
-  const lbl = document.getElementById('sync-label');
-  dot.className = 'sync-dot ' + (state === 'ok' ? 'ok' : state === 'busy' ? 'busy' : state === 'err' ? 'err' : '');
-  lbl.textContent = label || (state === 'ok' ? '同期済み' : state === 'busy' ? '同期中...' : state === 'err' ? 'エラー' : '未接続');
+// ── Firebase Auth ──────────────────────────────────────
+function handleLoginBtn() {
+  if (currentUser) { showAccountModal(); return; }
+  const cfg = getSavedFbConfig();
+  if (!cfg) { showFirebaseModal(); return; }
+  loadFirebase(cfg).then(ok => { if (ok) googleLogin(); });
 }
 
-function showGistModal() {
-  document.getElementById('gh-token').value   = gistToken;
-  document.getElementById('gh-gist-id').value = gistId;
-  document.getElementById('gist-modal').classList.add('show');
+async function googleLogin() {
+  try {
+    const { signInWithPopup, GoogleAuthProvider } = window._fb;
+    updateSyncStatus('busy', 'ログイン中...');
+    await signInWithPopup(fbAuth, new GoogleAuthProvider());
+  } catch(e) {
+    updateSyncStatus('err', 'ログイン失敗');
+    showToast('ログイン失敗: ' + e.message);
+  }
 }
 
-function saveGistSettings() {
-  gistToken = document.getElementById('gh-token').value.trim();
-  gistId    = document.getElementById('gh-gist-id').value.trim();
-  localStorage.setItem(TOKEN_KEY, gistToken);
-  localStorage.setItem(GISTID_KEY, gistId);
-  closeModal('gist-modal');
-  if (gistToken) syncNow();
+async function signOut() {
+  await window._fb.fbSignOut(fbAuth);
+  closeModal('account-modal');
+  showToast('ログアウトしました');
+}
+
+function updateLoginUI(user) {
+  const btn = document.getElementById('login-btn');
+  const lbl = document.getElementById('login-label');
+  if (user) {
+    lbl.textContent = user.displayName || user.email;
+    updateSyncStatus('ok', 'ログイン済み');
+  } else {
+    lbl.textContent = 'Google でログイン';
+    updateSyncStatus('none', 'ログインしてください');
+  }
+}
+
+function showAccountModal() {
+  if (!currentUser) return;
+  document.getElementById('user-name').textContent  = currentUser.displayName || '';
+  document.getElementById('user-email').textContent = currentUser.email || '';
+  const av = document.getElementById('user-avatar');
+  if (currentUser.photoURL) { av.src = currentUser.photoURL; av.style.display = ''; }
+  document.getElementById('account-modal').classList.add('show');
+}
+
+// ── Firestore Sync ─────────────────────────────────────
+let _unsubscribe = null;
+
+function listenFirestore(uid) {
+  if (_unsubscribe) _unsubscribe();
+  const { doc, onSnapshot } = window._fb;
+  const ref = doc(fbDb, 'users', uid, 'data', 'dialogue');
+  updateSyncStatus('busy', '接続中...');
+  _unsubscribe = onSnapshot(ref, snap => {
+    if (snap.exists()) {
+      const remote = snap.data();
+      // ローカルより新しい場合だけ上書き（updatedAt で比較）
+      const localTs  = data._updatedAt || 0;
+      const remoteTs = remote._updatedAt || 0;
+      if (remoteTs > localTs) {
+        data = remote;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        renderSidebar();
+        if (currentScene && !data.scenes[currentScene]) {
+          selectScene(Object.keys(data.scenes)[0] || null);
+        } else {
+          renderNodes();
+        }
+        showToast('クラウドから更新を取得しました');
+      }
+    }
+    updateSyncStatus('ok', '同期済み');
+    dirty = false;
+  }, err => {
+    updateSyncStatus('err', 'Firestore エラー');
+    console.error(err);
+  });
 }
 
 async function syncNow() {
-  if (!gistToken) { showToast('Token が未設定です'); return; }
+  if (!currentUser || !fbDb) {
+    showToast(getSavedFbConfig() ? 'ログインしてください' : 'Firebase を設定してください');
+    return;
+  }
   updateSyncStatus('busy', '同期中...');
   try {
-    const content = JSON.stringify(data, null, 2);
-    let res;
-    if (gistId) {
-      res = await fetch(`https://api.github.com/gists/${gistId}`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `token ${gistToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: { 'dialogue_data.json': { content } } })
-      });
-    } else {
-      res = await fetch('https://api.github.com/gists', {
-        method: 'POST',
-        headers: { 'Authorization': `token ${gistToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: 'Dialogue Editor Data', public: false, files: { 'dialogue_data.json': { content } } })
-      });
-      if (res.ok) {
-        const json = await res.json();
-        gistId = json.id;
-        localStorage.setItem(GISTID_KEY, gistId);
-      }
-    }
-    if (res.ok) {
-      dirty = false;
-      updateSyncStatus('ok', '同期済み ' + new Date().toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' }));
-      showToast('Gist に保存しました');
-    } else {
-      throw new Error('HTTP ' + res.status);
-    }
+    const { doc, setDoc } = window._fb;
+    const ref = doc(fbDb, 'users', currentUser.uid, 'data', 'dialogue');
+    data._updatedAt = Date.now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    await setDoc(ref, data);
+    dirty = false;
+    updateSyncStatus('ok', '同期済み ' + new Date().toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' }));
+    showToast('クラウドに保存しました');
   } catch(e) {
-    updateSyncStatus('err', 'エラー: ' + e.message);
+    updateSyncStatus('err', 'エラー');
     showToast('同期失敗: ' + e.message);
   }
 }
 
-async function pullFromGist() {
-  if (!gistToken || !gistId) return;
-  updateSyncStatus('busy', '取得中...');
-  try {
-    const res  = await fetch(`https://api.github.com/gists/${gistId}`, {
-      headers: { 'Authorization': `token ${gistToken}` }
-    });
-    const json = await res.json();
-    const content = json.files?.['dialogue_data.json']?.content;
-    if (content) {
-      data = JSON.parse(content);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      renderSidebar();
-      const first = Object.keys(data.scenes)[0];
-      if (first) selectScene(first);
-      updateSyncStatus('ok', '取得完了');
-      showToast('Gist からデータを取得しました');
-    }
-  } catch(e) {
-    updateSyncStatus('err', 'エラー');
-  }
+// ── Firebase config modal ──────────────────────────────
+function showFirebaseModal() {
+  const cfg = getSavedFbConfig() || {};
+  document.getElementById('fb-apikey').value     = cfg.apiKey || '';
+  document.getElementById('fb-authdomain').value = cfg.authDomain || '';
+  document.getElementById('fb-projectid').value  = cfg.projectId || '';
+  document.getElementById('firebase-modal').classList.add('show');
+}
+
+function saveFirebaseSettings() {
+  const config = {
+    apiKey:     document.getElementById('fb-apikey').value.trim(),
+    authDomain: document.getElementById('fb-authdomain').value.trim(),
+    projectId:  document.getElementById('fb-projectid').value.trim(),
+  };
+  if (!config.apiKey || !config.projectId) { showToast('API Key と Project ID は必須です'); return; }
+  localStorage.setItem(FB_KEY, JSON.stringify(config));
+  closeModal('firebase-modal');
+  loadFirebase(config).then(ok => { if (ok) googleLogin(); });
 }
 
 // ── JSON output ────────────────────────────────────────
@@ -796,12 +915,18 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Sync status ────────────────────────────────────────
+function updateSyncStatus(state, label) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot ' + ({ ok:'ok', busy:'busy', err:'err' }[state] || '');
+  lbl.textContent = label || ({ ok:'同期済み', busy:'同期中...', err:'エラー', none:'未接続' }[state] || '未接続');
+}
+
 // ── Start ──────────────────────────────────────────────
 init();
-
-// Gist から起動時にプル（Token設定済みの場合）
-if (gistToken && gistId) {
-  setTimeout(pullFromGist, 800);
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/serihu-editor/sw.js');
 }
 </script>
 </body>
